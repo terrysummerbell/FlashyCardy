@@ -1,21 +1,20 @@
 ---
-description: Auth and data access security using Clerk - users must only access their own data
 alwaysApply: true
 ---
-
 # Auth: Clerk & Data Access Security
 
 All authentication is handled by Clerk. Users must **never** be able to read, modify, or delete data that belongs to another user.
 
 ## Getting the Current User
 
-In Server Components, Server Actions, and Route Handlers, always get the user from Clerk:
+In Server Components and Server Actions, always get the user from Clerk. If no user is authenticated, redirect to the homepage — this is where the sign-in and sign-up modals are. Never redirect to `/sign-in`.
 
 ```ts
 import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 
 const { userId } = await auth();
-if (!userId) throw new Error("Unauthorized");
+if (!userId) redirect("/");
 ```
 
 ## Always Scope Queries to the Current User
@@ -59,17 +58,21 @@ await db.delete(decks)
   .where(and(eq(decks.id, deckId), eq(decks.clerkUserId, userId)));
 ```
 
-## Route Handler / Server Action Pattern
+## Server Action Pattern
+
+In Server Actions, redirect unauthenticated users to the homepage:
 
 ```ts
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+
+export async function deleteDeck(deckId: string) {
   const { userId } = await auth();
-  if (!userId) return new Response("Unauthorized", { status: 401 });
+  if (!userId) redirect("/");
 
   await db.delete(decks).where(
-    and(eq(decks.id, params.id), eq(decks.clerkUserId, userId))
+    and(eq(decks.id, deckId), eq(decks.clerkUserId, userId))
   );
-  return new Response(null, { status: 204 });
 }
 ```
 

@@ -1,19 +1,56 @@
 ---
-description: Data fetching, mutations, and validation patterns for Next.js with Drizzle
 alwaysApply: true
 ---
-
 # Data Access Patterns
+
+## Query Helper Functions — `db/queries` Directory
+
+All database interactions must be encapsulated in helper functions inside the `src/db/queries/` directory. Never write inline Drizzle queries directly in Server Components or Server Actions — always call a query helper instead.
+
+Organise query files by entity, for example:
+- `src/db/queries/decks.ts` — all deck-related queries
+- `src/db/queries/cards.ts` — all card-related queries
+
+```ts
+// ✅ GOOD — query helper in src/db/queries/decks.ts
+import { db } from "@/db";
+import { decks } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
+
+export async function getDecksByUser(userId: string) {
+  return db.select().from(decks).where(eq(decks.clerkUserId, userId));
+}
+
+export async function getDeckByIdForUser(deckId: string, userId: string) {
+  return db.query.decks.findFirst({
+    where: and(eq(decks.id, deckId), eq(decks.clerkUserId, userId)),
+  });
+}
+
+export async function createDeck(userId: string, title: string, description?: string) {
+  return db.insert(decks).values({ clerkUserId: userId, title, description });
+}
+
+export async function deleteDeck(deckId: string, userId: string) {
+  return db.delete(decks).where(and(eq(decks.id, deckId), eq(decks.clerkUserId, userId)));
+}
+
+// ❌ BAD — inline Drizzle query written directly in a component or action
+const userDecks = await db.select().from(decks).where(eq(decks.clerkUserId, userId));
+```
 
 ## Data Fetching — Server Components Only
 
-All data retrieval must be done in Server Components. Never fetch data in Client Components or via API routes for reads.
+All data retrieval must be done in Server Components by calling query helpers from `db/queries`. Never fetch data in Client Components or via API routes for reads.
 
 ```tsx
-// ✅ GOOD — data fetched in a Server Component
+// ✅ GOOD — Server Component calls a query helper
+import { getDecksByUser } from "@/db/queries/decks";
+
 export default async function DecksPage() {
   const { userId } = await auth();
-  const userDecks = await db.select().from(decks).where(eq(decks.clerkUserId, userId));
+  if (!userId) redirect("/");
+  const userDecks = await getDecksByUser(userId);
   return <DeckList decks={userDecks} />;
 }
 
@@ -23,16 +60,35 @@ export function DecksPage() {
   const [decks, setDecks] = useState([]);
   useEffect(() => { fetch("/api/decks").then(...) }, []);
 }
+
+// ❌ BAD — inline Drizzle query in a Server Component
+export default async function DecksPage() {
+  const userDecks = await db.select().from(decks).where(eq(decks.clerkUserId, userId));
+}
 ```
 
 ## Mutations — Server Actions Only
 
-All inserts, updates, and deletes must be performed via Server Actions — never via Route Handlers or client-side fetch calls.
+All inserts, updates, and deletes must be performed via Server Actions that call query helpers from `db/queries`. Never use Route Handlers for mutations or write inline Drizzle queries inside Server Actions.
 
 ```ts
-// ✅ GOOD — server action
+// ✅ GOOD — Server Action delegates to a query helper
 "use server";
-export async function createDeck(input: CreateDeckInput) { ... }
+import { createDeck } from "@/db/queries/decks";
+
+export async function createDeckAction(input: CreateDeckInput) {
+  const { userId } = await auth();
+  if (!userId) redirect("/");
+  const parsed = createDeckSchema.safeParse(input);
+  if (!parsed.success) throw new Error("Invalid input");
+  await createDeck(userId, parsed.data.title, parsed.data.description);
+}
+
+// ❌ BAD — inline Drizzle query inside a Server Action
+"use server";
+export async function createDeckAction(input: CreateDeckInput) {
+  await db.insert(decks).values({ clerkUserId: userId, title: input.title });
+}
 
 // ❌ BAD — route handler mutation
 export async function POST(req: Request) {
@@ -55,14 +111,14 @@ const createDeckSchema = z.object({
 
 type CreateDeckInput = z.infer<typeof createDeckSchema>;
 
-export async function createDeck(input: CreateDeckInput) {
+export async function createDeckAction(input: CreateDeckInput) {
   const parsed = createDeckSchema.safeParse(input);
   if (!parsed.success) throw new Error("Invalid input");
-  // proceed with parsed.data
+  await createDeck(userId, parsed.data.title);
 }
 
 // ❌ BAD — no validation, FormData type
-export async function createDeck(formData: FormData) {
+export async function createDeckAction(formData: FormData) {
   const title = formData.get("title");
   await db.insert(decks).values({ title });
 }

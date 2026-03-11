@@ -1,0 +1,73 @@
+---
+description: Enforce Clerk sign-in and sign-up buttons to use modal mode and shadcn/ui components
+globs: **/*.tsx,**/*.ts
+alwaysApply: false
+---
+
+# Clerk Auth: Always Use Modal Mode with shadcn/ui
+
+Sign-in and sign-up buttons must always open in a modal, never navigate to a dedicated page. All trigger UI must use shadcn/ui components — never use plain HTML elements like `<button>`.
+
+## SignInButton & SignUpButton
+
+Always pass `mode="modal"` to `<SignInButton>` and `<SignUpButton>`, and wrap them with the shadcn/ui `<Button>` component as the child trigger.
+
+```tsx
+// ✅ GOOD — opens modal, uses shadcn/ui Button
+import { SignInButton, SignUpButton } from "@clerk/nextjs";
+import { Button } from "@/components/ui/button";
+
+<SignInButton mode="modal">
+  <Button>Sign in</Button>
+</SignInButton>
+
+<SignUpButton mode="modal">
+  <Button>Sign up</Button>
+</SignUpButton>
+
+// ✅ GOOD — variant and size props are fine
+<SignInButton mode="modal">
+  <Button variant="outline" size="sm">Sign in</Button>
+</SignInButton>
+
+// ❌ BAD — plain HTML button instead of shadcn/ui Button
+<SignInButton mode="modal">
+  <button>Sign in</button>
+</SignInButton>
+
+// ❌ BAD — navigates to /sign-in or /sign-up page
+<SignInButton>
+  <Button>Sign in</Button>
+</SignInButton>
+```
+
+## shadcn/ui for All Auth-Adjacent UI
+
+Any UI surrounding auth flows — dialogs, dropdowns, menus, avatars — must also use shadcn/ui components. For example, a user menu after sign-in should use `<DropdownMenu>`, `<Avatar>`, etc. from `@/components/ui/`.
+
+```tsx
+// ✅ GOOD — user menu uses shadcn/ui primitives
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+
+<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Avatar>
+      <AvatarImage src={user.imageUrl} />
+      <AvatarFallback>{user.firstName?.[0]}</AvatarFallback>
+    </Avatar>
+  </DropdownMenuTrigger>
+  <DropdownMenuContent>
+    <DropdownMenuItem>Sign out</DropdownMenuItem>
+  </DropdownMenuContent>
+</DropdownMenu>
+
+// ❌ BAD — raw HTML elements for auth UI
+<div onClick={openMenu}>
+  <img src={user.imageUrl} />
+</div>
+```
+
+## No Dedicated Auth Pages for Buttons
+
+Do not use `<Link href="/sign-in">` or `<Link href="/sign-up">` as sign-in/sign-up triggers. These routes may still exist for direct navigation, but interactive buttons must use the modal pattern above.
