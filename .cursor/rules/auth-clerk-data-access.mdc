@@ -1,0 +1,76 @@
+---
+description: Auth and data access security using Clerk - users must only access their own data
+alwaysApply: true
+---
+
+# Auth: Clerk & Data Access Security
+
+All authentication is handled by Clerk. Users must **never** be able to read, modify, or delete data that belongs to another user.
+
+## Getting the Current User
+
+In Server Components, Server Actions, and Route Handlers, always get the user from Clerk:
+
+```ts
+import { auth } from "@clerk/nextjs/server";
+
+const { userId } = await auth();
+if (!userId) throw new Error("Unauthorized");
+```
+
+## Always Scope Queries to the Current User
+
+`decks` has a `clerkUserId` column. Every query on `decks` must filter by the authenticated user's `userId`.
+
+```ts
+// ✅ GOOD — scoped to the current user
+const userDecks = await db.select().from(decks).where(eq(decks.clerkUserId, userId));
+
+// ❌ BAD — returns all decks for all users
+const allDecks = await db.select().from(decks);
+```
+
+## Accessing Cards via Deck Ownership
+
+`cards` belong to a `deck`, not directly to a user. Before reading, updating, or deleting cards, verify the parent deck belongs to the current user.
+
+```ts
+// ✅ GOOD — verify deck ownership before touching cards
+const deck = await db.query.decks.findFirst({
+  where: and(eq(decks.id, deckId), eq(decks.clerkUserId, userId)),
+});
+if (!deck) throw new Error("Not found");
+
+// Now safe to query cards for this deck
+```
+
+## Mutations (Create / Update / Delete)
+
+Always scope mutations with `clerkUserId` to prevent unauthorised writes:
+
+```ts
+// ✅ Update — must match both id AND clerkUserId
+await db.update(decks)
+  .set({ title })
+  .where(and(eq(decks.id, deckId), eq(decks.clerkUserId, userId)));
+
+// ✅ Delete
+await db.delete(decks)
+  .where(and(eq(decks.id, deckId), eq(decks.clerkUserId, userId)));
+```
+
+## Route Handler / Server Action Pattern
+
+```ts
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+  const { userId } = await auth();
+  if (!userId) return new Response("Unauthorized", { status: 401 });
+
+  await db.delete(decks).where(
+    and(eq(decks.id, params.id), eq(decks.clerkUserId, userId))
+  );
+  return new Response(null, { status: 204 });
+}
+```
+
+Never trust IDs coming from the client alone — always pair them with the authenticated `userId`.

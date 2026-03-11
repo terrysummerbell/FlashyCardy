@@ -1,0 +1,69 @@
+---
+description: Data fetching, mutations, and validation patterns for Next.js with Drizzle
+alwaysApply: true
+---
+
+# Data Access Patterns
+
+## Data Fetching — Server Components Only
+
+All data retrieval must be done in Server Components. Never fetch data in Client Components or via API routes for reads.
+
+```tsx
+// ✅ GOOD — data fetched in a Server Component
+export default async function DecksPage() {
+  const { userId } = await auth();
+  const userDecks = await db.select().from(decks).where(eq(decks.clerkUserId, userId));
+  return <DeckList decks={userDecks} />;
+}
+
+// ❌ BAD — fetching in a Client Component
+"use client";
+export function DecksPage() {
+  const [decks, setDecks] = useState([]);
+  useEffect(() => { fetch("/api/decks").then(...) }, []);
+}
+```
+
+## Mutations — Server Actions Only
+
+All inserts, updates, and deletes must be performed via Server Actions — never via Route Handlers or client-side fetch calls.
+
+```ts
+// ✅ GOOD — server action
+"use server";
+export async function createDeck(input: CreateDeckInput) { ... }
+
+// ❌ BAD — route handler mutation
+export async function POST(req: Request) {
+  const body = await req.json();
+  await db.insert(decks).values(body);
+}
+```
+
+## Validation — Zod Required
+
+All data passed into Server Actions must be validated with Zod. Define a Zod schema, infer the TypeScript type from it, and use that type as the parameter — never use `FormData` as a parameter type.
+
+```ts
+// ✅ GOOD
+import { z } from "zod";
+
+const createDeckSchema = z.object({
+  title: z.string().min(1).max(100),
+});
+
+type CreateDeckInput = z.infer<typeof createDeckSchema>;
+
+export async function createDeck(input: CreateDeckInput) {
+  const parsed = createDeckSchema.safeParse(input);
+  if (!parsed.success) throw new Error("Invalid input");
+  // proceed with parsed.data
+}
+
+// ❌ BAD — no validation, FormData type
+export async function createDeck(formData: FormData) {
+  const title = formData.get("title");
+  await db.insert(decks).values({ title });
+}
+```

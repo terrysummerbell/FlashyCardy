@@ -1,0 +1,51 @@
+---
+alwaysApply: true
+---
+# Database: Use Drizzle ORM
+
+All database interactions must use the Drizzle schema and query builder. Never write raw SQL or use any other query method.
+
+## Schema
+
+Tables are defined in [src/db/schema.ts](mdc:src/db/schema.ts). The two tables are:
+- `decks` — belongs to a `clerkUserId`, has `title` and `description`
+- `cards` — belongs to a `deckId` (cascade deletes), has `front` and `back`
+
+## DB Client
+
+Import the `db` instance from [src/db/index.ts](mdc:src/db/index.ts):
+
+```ts
+import { db } from "@/db";
+import { decks, cards } from "@/db/schema";
+```
+
+## Query Patterns
+
+```ts
+// ✅ Query with Drizzle
+const userDecks = await db.select().from(decks).where(eq(decks.clerkUserId, userId));
+
+// ✅ Insert
+await db.insert(cards).values({ deckId, front, back });
+
+// ✅ Update
+await db.update(decks).set({ title }).where(eq(decks.id, deckId));
+
+// ✅ Delete
+await db.delete(cards).where(eq(cards.id, cardId));
+
+// ❌ Never use raw SQL
+await sql`SELECT * FROM decks`;
+```
+
+## Relations
+
+Use Drizzle's `with` for joins instead of multiple queries:
+
+```ts
+const deckWithCards = await db.query.decks.findFirst({
+  where: eq(decks.id, deckId),
+  with: { cards: true },
+});
+```
