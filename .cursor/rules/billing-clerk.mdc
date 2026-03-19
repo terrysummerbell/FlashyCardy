@@ -1,0 +1,75 @@
+---
+alwaysApply: true
+---
+
+# Billing: Clerk Billing
+
+All subscription and payment logic is handled by Clerk Billing. Never use Stripe directly or implement custom billing logic.
+
+## Plans
+
+- `free_user` — default free tier
+- `pro` — paid tier
+
+## Features
+
+- `3_deck_limit` — user is capped at 3 decks
+- `unlimited_decks` — user can create unlimited decks
+- `ai_flashcard_generation` — user can generate cards with AI
+
+## Checking Access in Server Components / Server Actions
+
+Use `has()` from the `auth()` object to gate access server-side:
+
+```tsx
+import { auth } from '@clerk/nextjs/server'
+
+const { has } = await auth()
+
+// Check by plan
+const isPro = has({ plan: 'pro' })
+
+// Check by feature
+const canUseAI = has({ feature: 'ai_flashcard_generation' })
+const hasUnlimitedDecks = has({ feature: 'unlimited_decks' })
+```
+
+## Checking Access in Client Components
+
+Use the `<Show>` component to conditionally render UI:
+
+```tsx
+import { Show } from '@clerk/nextjs'
+
+// Gate by plan
+<Show when={{ plan: 'pro' }} fallback={<UpgradePrompt />}>
+  <ProFeature />
+</Show>
+
+// Gate by feature
+<Show when={{ feature: 'ai_flashcard_generation' }} fallback={<UpgradePrompt />}>
+  <AIGenerateButton />
+</Show>
+```
+
+## Pricing Page
+
+Use the `<PricingTable />` component on a dedicated `/pricing` page:
+
+```tsx
+import { PricingTable } from '@clerk/nextjs'
+
+export default function PricingPage() {
+  return (
+    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '0 1rem' }}>
+      <PricingTable />
+    </div>
+  )
+}
+```
+
+## Rules
+
+- Always use `has()` for server-side access checks; never trust client-passed plan/feature flags
+- Use `<Show>` for client-side UI gating; never conditionally render billing-gated UI via local state
+- Never write custom subscription/payment logic — Clerk Billing handles everything

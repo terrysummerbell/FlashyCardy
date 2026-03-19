@@ -1,10 +1,10 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { UserButton } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getDecksByUser } from "@/db/queries/decks";
-import { Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { CreateDeckModal } from "./create-deck-modal";
 import {
   Card,
   CardContent,
@@ -16,13 +16,17 @@ import {
 import { Separator } from "@/components/ui/separator";
 
 export default async function DashboardPage() {
-  const { userId } = await auth();
+  const { userId, has } = await auth();
   if (!userId) redirect("/");
 
   const [user, userDecks] = await Promise.all([
     currentUser(),
     getDecksByUser(userId),
   ]);
+
+  const isPro = has({ plan: "pro" });
+  const hasUnlimitedDecks = has({ feature: "unlimited_decks" });
+  const atDeckLimit = !hasUnlimitedDecks && userDecks.length >= 3;
 
   const displayName =
     user?.firstName ?? user?.emailAddresses[0].emailAddress ?? "there";
@@ -47,6 +51,11 @@ export default async function DashboardPage() {
               Dashboard
             </h1>
             <Badge variant="secondary">{userDecks.length} decks</Badge>
+            {isPro && (
+              <Badge className="bg-amber-500 text-black hover:bg-amber-500">
+                Pro
+              </Badge>
+            )}
           </div>
           <p className="mt-2 text-zinc-400">
             Welcome back, {displayName}. Manage your flashcard decks and study
@@ -63,46 +72,33 @@ export default async function DashboardPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             {userDecks.map((deck) => (
-              <Card key={deck.id} className="flex flex-col justify-between">
+              <Link key={deck.id} href={`/decks/${deck.id}`}>
+              <Card className="flex flex-col justify-between">
                 <CardHeader>
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle>{deck.title}</CardTitle>
-                    <Badge variant="outline">
-                      {deck.createdAt.toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </Badge>
-                  </div>
+                  <CardTitle>{deck.title}</CardTitle>
                   {deck.description && (
                     <CardDescription>{deck.description}</CardDescription>
                   )}
                 </CardHeader>
-                <CardContent>
-                  <Separator className="mb-4" />
+                <CardContent></CardContent>
+                <CardFooter>
                   <p className="text-xs text-muted-foreground">
-                    Created{" "}
-                    {deck.createdAt.toLocaleDateString("en-GB", {
+                    Updated{" "}
+                    {deck.updatedAt.toLocaleDateString("en-GB", {
                       day: "numeric",
                       month: "long",
                       year: "numeric",
                     })}
                   </p>
-                </CardContent>
-                <CardFooter>
-                  <Button>Study</Button>
                 </CardFooter>
               </Card>
+              </Link>
             ))}
           </div>
         )}
 
         <div className="mt-6">
-          <Button>
-            <Plus className="mr-1 h-4 w-4" />
-            Create New Deck
-          </Button>
+          <CreateDeckModal atLimit={atDeckLimit} />
         </div>
       </div>
     </div>

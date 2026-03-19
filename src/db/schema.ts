@@ -18,7 +18,7 @@ export const cards = pgTable("cards", {
   front: text("front").notNull(),
   back: text("back").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
 export const decksRelations = relations(decks, ({ many }) => ({

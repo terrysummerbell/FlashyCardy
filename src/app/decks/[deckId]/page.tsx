@@ -19,10 +19,8 @@ interface DeckPageProps {
 }
 
 export default async function DeckPage({ params }: DeckPageProps) {
-  const { userId, has } = await auth();
+  const { userId } = await auth();
   if (!userId) redirect("/");
-
-  const canUseAI = has({ feature: "ai_flashcard_generation" });
 
   const { deckId } = await params;
   const deck = await getDeckWithCardsForUser(deckId, userId);
@@ -122,7 +120,7 @@ export default async function DeckPage({ params }: DeckPageProps) {
 
         <div className="mt-6 flex flex-wrap gap-3">
           <AddCardModal deckId={deckId} />
-          <GenerateCardsButton deckId={deckId} canUseAI={canUseAI} hasDescription={!!deck.description} />
+          <GenerateCardsButton deckId={deckId} hasDescription={!!deck.description} />
         </div>
       </div>
     </div>

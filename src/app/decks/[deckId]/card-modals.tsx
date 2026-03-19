@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Show } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -325,19 +326,14 @@ export function DeleteDeckButton({ deck }: DeleteDeckButtonProps) {
 
 interface GenerateCardsButtonProps {
   deckId: string;
-  canUseAI: boolean;
   hasDescription: boolean;
 }
 
-export function GenerateCardsButton({ deckId, canUseAI, hasDescription }: GenerateCardsButtonProps) {
+export function GenerateCardsButton({ deckId, hasDescription }: GenerateCardsButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  function handleClick() {
-    if (!canUseAI) {
-      router.push("/pricing");
-      return;
-    }
+  function handleGenerate() {
     if (!hasDescription) {
       toast.info("Add a description to this deck before generating cards with AI.");
       return;
@@ -352,41 +348,52 @@ export function GenerateCardsButton({ deckId, canUseAI, hasDescription }: Genera
     });
   }
 
-  const button = (
+  const generateButton = (
     <Button
       variant="outline"
-      onClick={handleClick}
+      onClick={handleGenerate}
       disabled={isPending}
-      className={`gap-2 ${canUseAI && !hasDescription ? "text-zinc-500 hover:text-zinc-500" : "text-white"}`}
+      className={`gap-2 ${!hasDescription ? "text-zinc-500 hover:text-zinc-500" : "text-white"}`}
     >
       <Sparkles className="h-4 w-4" />
       {isPending ? "Generating…" : "Generate Cards with AI"}
     </Button>
   );
 
-  if (!canUseAI) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>{button}</TooltipTrigger>
-        <TooltipContent>
-          <p>AI card generation is a Pro feature. Click to upgrade.</p>
-        </TooltipContent>
-      </Tooltip>
-    );
-  }
+  const upgradeButton = (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => router.push("/pricing")}
+          >
+            <Sparkles className="h-4 w-4" />
+            Generate Cards with AI
+          </Button>
+        }
+      />
+      <TooltipContent>
+        <p>AI card generation is a Pro feature. Click to upgrade.</p>
+      </TooltipContent>
+    </Tooltip>
+  );
 
-  if (!hasDescription) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>{button}</TooltipTrigger>
-        <TooltipContent>
-          <p>Add a deck description to generate cards with AI.</p>
-        </TooltipContent>
-      </Tooltip>
-    );
-  }
-
-  return button;
+  return (
+    <Show when={{ feature: "ai_flashcard_generation" }} fallback={upgradeButton}>
+      {hasDescription ? (
+        generateButton
+      ) : (
+        <Tooltip>
+          <TooltipTrigger render={generateButton} />
+          <TooltipContent>
+            <p>Add a deck description to generate cards with AI.</p>
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </Show>
+  );
 }
 
 interface AddCardModalProps {

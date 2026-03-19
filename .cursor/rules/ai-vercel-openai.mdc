@@ -1,0 +1,39 @@
+---
+alwaysApply: true
+---
+# AI: Vercel AI SDK + OpenAI
+
+All AI features use the Vercel AI SDK (`ai`) with the OpenAI provider (`@ai-sdk/openai`). Never use the OpenAI SDK directly or call the OpenAI API via `fetch`.
+
+## Generating Flashcards (Structured Output)
+
+Use `generateText` with `Output.object` and a Zod schema to generate an array of flashcards:
+
+```ts
+import { generateText, Output } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { z } from 'zod';
+
+const { output } = await generateText({
+  model: openai('gpt-4o'),
+  output: Output.object({
+    schema: z.object({
+      cards: z.array(
+        z.object({
+          front: z.string(),
+          back: z.string(),
+        }),
+      ),
+    }),
+  }),
+  prompt: `Generate 10 flashcards about the topic: ${topic}`,
+});
+
+// output.cards is Card[]
+```
+
+## Rules
+
+- Always use `Output.object` with a Zod schema for structured data — never parse raw text
+- Always validate/gate AI features server-side with `has({ feature: 'ai_flashcard_generation' })` before calling the model
+- Keep AI calls in Server Actions only — never call the AI SDK from Client Components
