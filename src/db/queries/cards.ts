@@ -60,3 +60,15 @@ export async function deleteCard(
     .delete(cards)
     .where(and(eq(cards.id, cardId), eq(cards.deckId, deckId)));
 }
+
+export async function createManyCards(
+  deckId: string,
+  userId: string,
+  newCards: { front: string; back: string }[],
+) {
+  await assertDeckOwnership(deckId, userId);
+  return db
+    .insert(cards)
+    .values(newCards.map((c) => ({ deckId, front: c.front, back: c.back })))
+    .returning();
+}
