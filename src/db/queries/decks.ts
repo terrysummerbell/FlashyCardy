@@ -30,37 +30,27 @@ export async function createDeck(
     .returning();
 }
 
-/**
- * Creates a deck only if the user has fewer than `limit` decks.
- * The count and insert run inside a serializable transaction so concurrent
- * requests cannot both slip past the limit check (TOCTOU protection).
- */
 export async function createDeckWithLimit(
   userId: string,
   title: string,
   limit: number,
   description?: string,
 ) {
-  return db.transaction(
-    async (tx) => {
-      const [{ value: deckCount }] = await tx
-        .select({ value: count() })
-        .from(decks)
-        .where(eq(decks.clerkUserId, userId));
+  const [{ value: deckCount }] = await db
+    .select({ value: count() })
+    .from(decks)
+    .where(eq(decks.clerkUserId, userId));
 
-      if (deckCount >= limit) {
-        throw new Error(
-          "Free plan is limited to 3 decks. Upgrade to Pro for unlimited decks.",
-        );
-      }
+  if (deckCount >= limit) {
+    throw new Error(
+      "Free plan is limited to 3 decks. Upgrade to Pro for unlimited decks.",
+    );
+  }
 
-      return tx
-        .insert(decks)
-        .values({ clerkUserId: userId, title, description })
-        .returning();
-    },
-    { isolationLevel: "serializable" },
-  );
+  return db
+    .insert(decks)
+    .values({ clerkUserId: userId, title, description })
+    .returning();
 }
 
 export async function updateDeck(
